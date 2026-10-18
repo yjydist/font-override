@@ -1,0 +1,26 @@
+{
+  "name": "font-override",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "按 sans、serif、mono 分类并保留原字体栈的油猴脚本",
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "check": "bun run --bun tsc --noEmit && bun run --bun tsc --project tsconfig.tools.json --noEmit",
+    "test": "bun run build && bun run test:build && bun run test:browser",
+    "test:build": "bun test ./tests/build.test.ts",
+    "test:browser": "bun run --bun playwright test",
+    "test:headed": "bun run build && bun run --bun playwright test --headed"
+  },
+  "devDependencies": {
+    "@fontsource/material-icons": "5.3.0",
+    "@fontsource/roboto-mono": "5.3.0",
+    "@playwright/test": "1.64.1",
+    "@types/bun": "1.4.3",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "bun": "1.4.3"
+  },
+  "packageManager": "bun@1.4.3"
+}

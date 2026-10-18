@@ -1,0 +1,76 @@
+name: Check and release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      artifact-id: ${{ steps.artifact.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Check types
+        run: bun run check
+      - name: Build userscript and validate release version
+        run: bun run build
+      - name: Test build artifacts
+        run: bun run test:build
+      - name: Install Chromium
+        run: bun run --bun playwright install --with-deps chromium
+      - name: Test the built userscript in Chromium
+        run: bun run test:browser
+      - name: Preserve the tested release files
+        id: artifact
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v7
+        with:
+          name: userscript-${{ github.sha }}
+          path: |
+            dist/font-override.user.js
+            dist/font-override.meta.js
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.check.outputs.artifact-id }}
+          path: dist
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            dist/font-override.user.js dist/font-override.meta.js \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
+      - name: Show installation link
+        run: |
+          printf '[安装最新版](https://github.com/%s/releases/latest/download/font-override.user.js)\n' \
+            "$GITHUB_REPOSITORY" >> "$GITHUB_STEP_SUMMARY"
