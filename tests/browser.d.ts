@@ -2,10 +2,16 @@ export {};
 
 declare global {
   interface Window {
-    __menus: Record<string, () => void>;
-    __writes: { key: string; value: unknown }[];
-    __metrics: { observers: number; tasks: number; measurements: number; writes: number };
-    __deliverSetting(key: string, value: unknown, remote: boolean): void;
-    __persistFontSetting?: (key: string, value: unknown) => Promise<void>;
+    __metrics: { measurements: number; writes: number; boundaryMeasurements: number; boundaryWrites: number; pseudoReads: number };
+    __samples?: [number, string | null, number | null][];
+    __paints?: [string, number][];
+    __slowRan?: number;
+    __parseTime?: [number, string];
+    __originalGetComputedStyle?: typeof getComputedStyle;
+    __frameSamples?: [number, string | null][];
+    __frameSamplesPaints?: [string, number][];
+    __ruleAppliedAt?: number;
+    __placeholder?: FontFace;
+    __icon?: FontFace;
   }
 }

@@ -21,7 +21,16 @@ const SANS_NAMES = new Set([
   '黑体', '思源黑体', 'hiragino sans', 'yu gothic', '-apple-system', 'blinkmacsystemfont',
 ]);
 
-export function createClassifier() {
+export interface Classifier {
+  host: HTMLElement;
+  classify(font: FontSnapshot, language: string, cacheKey: string): FontCategory;
+  applyFont(font: FontSnapshot, language: string): void;
+  measure(text: string): number;
+  ensureConnected(): void;
+  clearCache(): void;
+}
+
+export function createClassifier(): Classifier {
   const classificationCache = new Map<string, FontCategory>();
   const host = document.createElement('div');
   // A closed root keeps site CSS and the document observer out of the measuring span.
@@ -31,13 +40,16 @@ export function createClassifier() {
   probe.style.cssText = 'all:initial;display:inline-block;position:absolute;white-space:pre;margin:0;padding:0;border:0;letter-spacing:0;word-spacing:0;font-kerning:none;';
   host.attachShadow({ mode: 'closed' }).append(probe);
 
-  function classify(font: FontSnapshot, language: string): FontCategory {
-    const key = JSON.stringify([...FONT_PROPERTIES.map(property => font[property]), language]);
-    const cached = classificationCache.get(key);
-    if (cached) return cached;
+  function applyFont(font: FontSnapshot, language: string): void {
     for (const property of FONT_PROPERTIES) probe.style[property] = font[property];
     if (parseFloat(font.fontSize) === 0) probe.style.fontSize = '16px';
     probe.lang = language;
+  }
+
+  function classify(font: FontSnapshot, language: string, cacheKey: string): FontCategory {
+    const cached = classificationCache.get(cacheKey);
+    if (cached) return cached;
+    applyFont(font, language);
     const widths = [];
     // Individual glyphs avoid kerning and ligature artifacts from sample strings.
     for (const character of 'iWm.0l@') {
@@ -60,15 +72,20 @@ export function createClassifier() {
       }
     }
     if (classificationCache.size >= 512) classificationCache.clear();
-    classificationCache.set(key, result);
+    classificationCache.set(cacheKey, result);
     return result;
   }
 
   return {
     host,
     classify,
+    applyFont,
+    measure(text: string): number {
+      probe.textContent = text;
+      return probe.getBoundingClientRect().width;
+    },
     ensureConnected(): void {
-      if (!host.isConnected) document.documentElement.append(host);
+      if (!host.isConnected && document.documentElement) document.documentElement.append(host);
     },
     clearCache(): void {
       classificationCache.clear();

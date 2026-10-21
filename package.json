@@ -1,6 +1,6 @@
 {
   "name": "font-override",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "description": "按 sans、serif、mono 分类并保留原字体栈的油猴脚本",
@@ -14,6 +14,7 @@
   },
   "devDependencies": {
     "@fontsource/material-icons": "5.3.0",
+    "@fontsource/roboto": "5.3.0",
     "@fontsource/roboto-mono": "5.3.0",
     "@playwright/test": "1.64.1",
     "@types/bun": "1.4.3",

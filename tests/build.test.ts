@@ -27,6 +27,8 @@ test('local build is a standalone classic script with a metadata-only companion'
   expect(header).toMatch(new RegExp(`^// @version\\s+${version.replaceAll('.', '\\.')}\\s*$`, 'm'));
   expect(header).toMatch(/^\/\/ @name\s+智能字体替换$/m);
   expect(header).toMatch(/^\/\/ @namespace\s+font-override$/m);
+  expect(header).toMatch(/^\/\/ @run-at\s+document-start$/m);
+  expect(header).not.toContain('@grant');
   expect(header).not.toContain('@updateURL');
   expect(header).not.toContain('@downloadURL');
   expect(script.match(/==UserScript==/g)).toHaveLength(1);
