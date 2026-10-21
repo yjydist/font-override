@@ -162,6 +162,111 @@ test('releases old overrides when a subtree becomes a protected formula', async 
   await expectFamily(page, '#child', /^sans-serif, Arial, sans-serif$/);
 });
 
+test('preserves encrypted font names and marked subtrees without exempting ordinary web fonts', async ({ page }) => {
+  const { errors } = await setup(page, `
+    <style>
+      @font-face { font-family: 'EXAM-DATA-DECRYPT-FONT'; src: url('/icons.woff2'); }
+      @font-face { font-family: EncodedFace; src: url('/icons.woff2'); }
+      @font-face { font-family: OrdinaryFace; src: url('/mono.woff2'); }
+      body { font: 20px Arial, sans-serif; }
+      .sample { display: block; width: 100px; height: 48px; font-size: 32px; }
+      #named { font-family: 'EXAM-DATA-DECRYPT-FONT', Arial, sans-serif; }
+      #marked { font-family: EncodedFace, Arial, sans-serif; }
+    </style>
+    <div id="parent">
+      <span id="named" class="sample">home</span>
+      <span id="marked" class="sample xuetangx-com-encrypted-font"><b id="nested">home</b></span>
+      <p id="chinese" style="font-family: exam-data-decrypt-font, Arial">步也灯</p>
+      <p id="ordinary" style="font-family: OrdinaryFace, sans-serif">iWm.0l@</p>
+      <p id="similar" style="font-family: other-exam-data-decrypt-font, Arial">Text</p>
+      <p id="comma" style="font-family: 'exam-data-decrypt-font, decoy', Arial">Text</p>
+    </div>
+  `, { inject: false, store: storage({ 'fontOverride.sans': 'monospace' }) });
+  await page.evaluate(() => document.fonts.ready);
+  const selectors = ['#named', '#marked', '#nested', '#chinese'];
+  const before = await Promise.all(selectors.map(selector => family(page, selector)));
+  const screenshots = await Promise.all(['#named', '#marked'].map(selector => page.locator(selector).screenshot()));
+  await start(page);
+  await expectFamily(page, '#parent', /^monospace, Arial, sans-serif$/);
+  await expectFamily(page, '#ordinary', /^monospace, OrdinaryFace, sans-serif$/);
+  await expectSettled(page);
+  expect(await Promise.all(selectors.map(selector => family(page, selector)))).toEqual(before);
+  for (const [index, selector] of ['#named', '#marked'].entries()) {
+    expect((await page.locator(selector).screenshot()).equals(screenshots[index]!), `${selector} glyphs are unchanged`).toBe(true);
+  }
+  await expect(page.locator('#chinese')).toHaveText('步也灯');
+  await expectFamily(page, '#similar', /^monospace, other-exam-data-decrypt-font, Arial$/);
+  await expectFamily(page, '#comma', /^monospace, "exam-data-decrypt-font, decoy", Arial$/);
+  await changeSetting(page, 'sans', '"Preferred Sans"');
+  await expectFamily(page, '#parent', /^"Preferred Sans", Arial, sans-serif$/);
+  await expectSettled(page);
+  expect(await Promise.all(selectors.map(selector => family(page, selector)))).toEqual(before);
+  expect(errors).toEqual([]);
+});
+
+test('restores encrypted subtree declarations across batches and resumes replacement when unmarked', async ({ page }) => {
+  await setup(page, `
+    <style>body { font-family: Arial, sans-serif; }</style>
+    <div id="parent"><section id="boundary">
+      ${'<span class="inherited">文字</span>'.repeat(90)}
+      <span id="own" style="font-family: Georgia, serif !important; color: red">自有字体</span>
+    </section></div>
+  `);
+  await expectFamily(page, '#own', /^serif, Georgia, serif$/);
+  await expectSettled(page);
+  await page.locator('#boundary').evaluate(element => { element.classList.add('xuetangx-com-encrypted-font'); });
+  await expectFamily(page, '#boundary', /^Arial, sans-serif$/);
+  await expectFamily(page, '#own', /^Georgia, serif$/);
+  await expectSettled(page);
+  expect(await page.locator('.inherited').evaluateAll(elements => elements.every(element =>
+    getComputedStyle(element).fontFamily === 'Arial, sans-serif' && element.getAttribute('style')?.includes('font-family') !== true))).toBe(true);
+  expect(await page.locator('#own').evaluate(element => ({ value: element.style.fontFamily, priority: element.style.getPropertyPriority('font-family') })))
+    .toEqual({ value: 'Georgia, serif', priority: 'important' });
+  await expect(page.locator('#own')).toHaveCSS('color', 'rgb(255, 0, 0)');
+  await page.locator('#boundary').evaluate(element => { element.insertAdjacentHTML('beforeend', '<span id="added">动态题目</span>'); });
+  await expectFamily(page, '#added', /^Arial, sans-serif$/);
+  await changeSetting(page, 'sans', '"Changed Sans"');
+  await expectFamily(page, '#parent', /^"Changed Sans", Arial, sans-serif$/);
+  await expectSettled(page);
+  await expectFamily(page, '#added', /^Arial, sans-serif$/);
+  await page.locator('#boundary').evaluate(element => { element.classList.remove('xuetangx-com-encrypted-font'); });
+  await expectFamily(page, '#added', /^"Changed Sans", Arial, sans-serif$/);
+  await expectFamily(page, '#own', /^serif, Georgia, serif$/);
+  await expectSettled(page);
+});
+
+test('protects dynamically assigned encrypted fonts before and after font loading', async ({ page }) => {
+  await setup(page, '<div style="font-family: Arial, sans-serif"><p id="target">iWm.0l@</p></div>');
+  await expectFamily(page, '#target', /^sans-serif, Arial, sans-serif$/);
+  await page.locator('#target').evaluate(element => { element.style.fontFamily = 'exam-data-decrypt-font, Arial'; });
+  await expectFamily(page, '#target', /^exam-data-decrypt-font, Arial$/);
+  await page.evaluate(async () => {
+    const font = new FontFace('exam-data-decrypt-font', 'url(/mono.woff2)');
+    document.fonts.add(font);
+    await font.load();
+    await document.fonts.ready;
+  });
+  await expectSettled(page);
+  await expectFamily(page, '#target', /^exam-data-decrypt-font, Arial$/);
+  await page.locator('#target').evaluate(element => { element.style.fontFamily = 'Arial, sans-serif'; });
+  await expectFamily(page, '#target', /^sans-serif, Arial, sans-serif$/);
+});
+
+test('protects encrypted content inside an injected iframe while replacing ordinary text', async ({ page }) => {
+  await setup(page, `<iframe srcdoc='<style>body { font-family: Arial, sans-serif; }</style>
+    <p id="named" style="font-family: exam-data-decrypt-font, Arial">步也灯</p>
+    <div class="xuetangx-com-encrypted-font"><span id="nested">文字</span></div>
+    <p id="ordinary">普通文字</p>'></iframe>`);
+  const frame = page.frames().find(candidate => candidate !== page.mainFrame());
+  if (!frame) throw new Error('Fixture iframe not found.');
+  await mockManager(frame, { 'fontOverride.sans': '"Frame Sans"' });
+  await start(frame);
+  await expectFamily(frame, '#ordinary', /^"Frame Sans", Arial, sans-serif$/);
+  await expectFamily(frame, '#named', /^exam-data-decrypt-font, Arial$/);
+  await expectFamily(frame, '#nested', /^Arial, sans-serif$/);
+  expect(await frame.evaluate(() => Object.keys(window.__menus))).toEqual([]);
+});
+
 test('offers exactly three settings and validates CSS family lists without changing cancelled values', async ({ page }) => {
   const { store } = await setup(page, '<p id="target" style="font-family: Arial, sans-serif">Text</p>');
   expect(await page.evaluate(() => Object.keys(window.__menus))).toEqual(['设置 sans 字体', '设置 serif 字体', '设置 mono 字体']);

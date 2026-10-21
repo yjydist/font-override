@@ -1,6 +1,6 @@
 # 智能字体替换
 
-适用于 **Chrome / Edge + Tampermonkey** 的单文件油猴脚本。按网页原字体的 sans、serif、mono 类别，在原字体栈前加入自选字体，保留网页原有回退顺序，并保护常见图标和公式。
+适用于 **Chrome / Edge + Tampermonkey** 的单文件油猴脚本。按网页原字体的 sans、serif、mono 类别，在原字体栈前加入自选字体，保留网页原有回退顺序，并保护常见图标、公式和已知加密字体。
 
 ```css
 /* 网页原样式 */
@@ -49,7 +49,7 @@ Releases 中的脚本包含自动更新地址：Tampermonkey 通过 `.meta.js` �
 ```mermaid
 flowchart TD
     A[恢复本批元素及祖先的原字体声明] --> B[读取网页计算样式]
-    B --> C{图标或特殊内容?}
+    B --> C{图标、加密字体或特殊内容?}
     C -->|是| D[保留边界原字体]
     C -->|否| E{多字符宽度一致?}
     E -->|是| F[使用 mono 设置]
@@ -68,6 +68,7 @@ flowchart TD
 - **继承与幂等**：读写分离，每次读取前临时恢复自身覆盖。保留网页原内联声明与优先级，只重新写入 `font-family`，避免前缀不断累积；已有完整目标前缀时不重复添加。
 - **动态更新**：新增或变化的内容扫描其包含子树；属性变化、样式表加载、字体加载完成/失败和窗口尺寸变化合并触发全页重新检测。扫描分批调度，测量缓存最多保留 512 项。脚本自身的同步写入不交给自身观察器处理。
 - **图标保护**：识别 Material Icons / Symbols、Font Awesome、常见 iconfont、私用区字符及图标伪元素。保留它们的原字体，并在 SVG、MathML、KaTeX、MathJax 等边界保留原字体，让内部排版继续由网页控制。
+- **加密字体保护（v1.0.1）**：雨课堂等页面通过特定字体，将底层不成句的汉字映射为可读字形；在其前面插入普通字体会破坏显示。脚本按完整字体名、不区分大小写地识别 `exam-data-decrypt-font`，并保护 `.xuetangx-com-encrypted-font` 标记的整个子树，保留原字体栈及顺序。动态标记和新增内容同样处理，移除标记后恢复正常替换。不会修改文字内容，也不会统一跳过普通 `@font-face` 字体。
 
 仅保留回退字体并不能保证所有图标安全：例如 Material Icons 的 `home` 是字母连字，普通字体已经含有这些字母，不会再为整个单词回退。因此图标保护先于字体替换。[Material Icons 原理](https://developers.google.com/fonts/docs/material_icons)、[字体回退规则](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/font-family)
 
@@ -76,7 +77,7 @@ flowchart TD
 - 首版处理普通 DOM 和 **Tampermonkey 实际注入的 iframe**。脚本不访问跨域父页面；iframe 是否能运行由浏览器及管理器权限决定。只在顶层页面注册设置菜单。
 - 不遍历网站的 Shadow DOM，不处理 Canvas 绘制文字或浏览器 PDF 阅读器。不改写独立声明字体的文本伪元素；普通继承型伪元素随宿主字体变化。
 - 不拦截 `CSSStyleSheet.insertRule()`、`replace()`、`adoptedStyleSheets` 等 CSSOM 操作，也不持续轮询 `:hover`、`:focus`、系统主题等无 DOM 变更的样式状态。后续可观察事件或刷新页面时会重新检测。
-- 衬线分类依赖声明和已知名称，不代表准确识别每个字符最终使用的实际字体。混合文字、字体子集、定制图标字体或未识别的数学排版仍可能需要针对性适配。
+- 衬线分类依赖声明和已知名称，不代表准确识别每个字符最终使用的实际字体。混合文字、字体子集、定制图标字体、未知加密字体或未识别的数学排版仍可能需要针对性适配；加密字体保护仅覆盖上述已确认的字体名和标记。
 - 替换字体会改变字形和排版尺寸；字体加载、分批处理期间可能发生短暂视觉变化。对于浏览器未显式指定字号的等宽文本，改变字体栈也可能影响浏览器的默认字号选择；默认 `monospace` 不重复插入以避免不必要的变化。
 - 重新检测会临时恢复相关 `font-family` 后在同一同步批次内写回。网站自己的 MutationObserver 仍可能看到这些内联样式变动；脚本不接管网站逻辑，也不保证与依赖 `style` 属性精确内容的组件完全兼容。
 
@@ -112,7 +113,7 @@ TypeScript CLI 和 Playwright 均显式使用 `--bun`，避免按它们的 Node 
 | `src/index.ts` | 连接设置与扫描器，启动脚本 |
 | `src/font-families.ts` | 解析字体列表并合并前缀 |
 | `src/classifier.ts` | 隔离测量、字体分类与缓存 |
-| `src/protection.ts` | 图标、伪元素与公式保护规则 |
+| `src/protection.ts` | 图标、伪元素、公式与已知加密字体保护规则 |
 | `src/settings.ts` | 三项设置、输入校验、GM 存储与同步 |
 | `src/scanner.ts` | DOM 观察、分批调度和字体声明读写 |
 | `src/types.ts` / `src/userscript.d.ts` | 领域类型与使用到的 GM API 声明 |
@@ -120,7 +121,7 @@ TypeScript CLI 和 Playwright 均显式使用 `--bun`，避免按它们的 Node 
 
 业务源码独立检查 DOM 类型，Bun 类型只在工具与测试配置中启用。`dist/`、测试报告和依赖目录由 Git 忽略。
 
-测试覆盖分类与缺字回退链、父子继承、动态节点与样式、延迟字体加载、图标截图前后对比、公式保护边界、设置校验与同步、iframe、无 `requestIdleCallback` 的兼容路径，以及大量节点的分批处理和最终静止状态。
+测试覆盖分类与缺字回退链、父子继承、动态节点与样式、延迟字体加载、图标及加密字体截图前后对比、公式和加密内容保护边界、动态保护标记切换、设置校验与同步、iframe、无 `requestIdleCallback` 的兼容路径，以及大量节点的分批处理和最终静止状态。
 
 可使用本机安装的 Chrome 或 Edge 运行同一套测试：
 
@@ -153,7 +154,7 @@ flowchart LR
 
 发布步骤：
 
-1. 修改 `package.json` 中的版本号，作为唯一版本来源；首版保留 `1.0.0`。
+1. 修改 `package.json` 中的版本号，作为唯一版本来源；当前开发版本为 `1.0.1`。
 2. 运行 `bun run check` 和 `bun run test`，提交源码、配置与 `bun.lock`。
 3. 推送提交，再推送对应版本标签。例如首版：
 

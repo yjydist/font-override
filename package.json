@@ -1,6 +1,6 @@
 {
   "name": "font-override",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "description": "按 sans、serif、mono 分类并保留原字体栈的油猴脚本",
