@@ -6,6 +6,7 @@
       "name": "font-override",
       "devDependencies": {
         "@fontsource/material-icons": "5.3.0",
+        "@fontsource/roboto": "5.3.0",
         "@fontsource/roboto-mono": "5.3.0",
         "@playwright/test": "1.64.1",
         "@types/bun": "1.4.3",
@@ -15,6 +16,8 @@
   },
   "packages": {
     "@fontsource/material-icons": ["@fontsource/material-icons@5.3.0", "", {}, "sha512-nCpzNTsS5KpIqWijK259rPOTaZXNJlRfTiVRDNguKwfSdoZL/O9zIvPs+3K2eeRrNW+fVJWMO+n3JQoi9DN9Tw=="],
+
+    "@fontsource/roboto": ["@fontsource/roboto@5.3.0", "", {}, "sha512-BapRJOWYP+LZ21zp+wBQjfpPYKRoxc4LspJ/RLuI+HSMBD5u/X4O+ESDrSvEqDSy0rAl7GwBJ+09mdc16cVQ1Q=="],
 
     "@fontsource/roboto-mono": ["@fontsource/roboto-mono@5.3.0", "", {}, "sha512-yhwplHMHW9dCk+1pZuERfcJe+K3rosGVZEoK0XktkxRSqQ9qsipSwwiuW2/8Qmtp9lzu3Ixa/ie4BMH3i8CkZQ=="],
 

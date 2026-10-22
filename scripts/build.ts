@@ -17,14 +17,10 @@ function metadata(repository?: string): string {
     ['name', '智能字体替换'],
     ['namespace', 'font-override'],
     ['version', version],
-    ['description', '按 sans、serif、mono 分类，在原字体栈前插入自选字体，保护图标和公式。'],
+    ['description', '按 sans、serif、mono 分类，在原字体栈前插入浏览器通用族，保护图标、公式和已知加密字体。'],
     ['match', 'http://*/*'],
     ['match', 'https://*/*'],
-    ['run-at', 'document-end'],
-    ['grant', 'GM_getValue'],
-    ['grant', 'GM_setValue'],
-    ['grant', 'GM_registerMenuCommand'],
-    ['grant', 'GM_addValueChangeListener'],
+    ['run-at', 'document-start'],
   ];
 
   if (repository) {
